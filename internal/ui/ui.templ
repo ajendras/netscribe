@@ -1,0 +1,430 @@
+package ui
+
+import (
+	"github.com/netscribe/netscribe/internal/models"
+)
+
+// Dashboard renders the complete synthwave neon interface. It includes
+// Tailwind via CDN, HTMX for interactivity, a perspective grid background,
+// glowing neon borders, chrome gradient headings, and live preview areas.
+// Upload and generation are wired via HTMX to the existing API handlers.
+templ Dashboard() {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>NetScribe — Traffic → Clients, Mocks &amp; Tests</title>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+			<style>
+				@layer base {
+					:root {
+						--neon-pink: #ff00aa;
+						--neon-cyan: #00f3ff;
+					}
+				}
+				.chrome-gradient {
+					background: linear-gradient(90deg, #ff00aa, #00f3ff);
+					-webkit-background-clip: text;
+					-webkit-text-fill-color: transparent;
+				}
+				.neon-glow-pink {
+					text-shadow: 
+						0 0 5px #ff00aa,
+						0 0 10px #ff00aa,
+						0 0 20px #ff00aa;
+				}
+				.neon-glow-cyan {
+					text-shadow: 
+						0 0 5px #00f3ff,
+						0 0 10px #00f3ff,
+						0 0 20px #00f3ff;
+				}
+				.grid-horizon {
+					background-image: 
+						linear-gradient(#1a0033 1px, transparent 1px),
+						linear-gradient(90deg, #1a0033 1px, transparent 1px);
+					background-size: 50px 50px;
+					animation: grid-move 20s linear infinite;
+				}
+				@keyframes grid-move {
+					0% { background-position: 0 0; }
+					100% { background-position: 50px 50px; }
+				}
+				.vhs {
+					position: relative;
+				}
+				.vhs::after {
+					content: '';
+					position: absolute;
+					top: 0;
+					left: 0;
+					width: 100%;
+					height: 100%;
+					background: repeating-linear-gradient(
+						transparent 0px,
+						transparent 2px,
+						rgba(255, 0, 170, 0.035) 2px,
+						rgba(255, 0, 170, 0.035) 4px
+					);
+					pointer-events: none;
+					animation: vhs-scan 4s linear infinite;
+				}
+				@keyframes vhs-scan {
+					0% { background-position: 0 0; }
+					100% { background-position: 0 400px; }
+				}
+				.glow-border {
+					box-shadow: 0 0 15px -3px rgb(0 243 255);
+				}
+			</style>
+		</head>
+		<body class="bg-[#0c001a] text-[#00f3ff] grid-horizon min-h-screen vhs overflow-x-hidden">
+			<div class="max-w-screen-2xl mx-auto relative z-10">
+				<!-- header -->
+				<header class="flex items-center justify-between border-b border-[#ff00aa]/30 px-10 py-6">
+					<div class="flex items-center gap-x-4">
+						<div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#ff00aa] to-[#00f3ff] flex items-center justify-center text-black text-3xl font-black shadow-[0_0_20px_#ff00aa] leading-none pt-0.5">N</div>
+						<div>
+							<h1 class="text-6xl font-black tracking-[-4px] chrome-gradient">NETSCRIBE</h1>
+							<p class="text-[10px] text-[#ff00aa] tracking-[3px] pl-1 -mt-1">LOCAL TRAFFIC → TYPED ARTIFACTS</p>
+						</div>
+					</div>
+					<nav class="flex items-center gap-x-8 text-sm uppercase tracking-widest">
+						<a href="#" class="hover:text-white transition-colors">HAR Ingestion</a>
+						<a href="#" class="hover:text-white transition-colors">Generators</a>
+						<a href="#" onclick="window.location.reload()" class="hover:text-white transition-colors">Reset</a>
+						<div onclick="showHelp()" class="cursor-pointer px-5 py-2 border border-[#00f3ff]/70 hover:border-[#ff00aa] rounded-3xl text-xs flex items-center gap-x-2 transition-all">
+							<span class="text-[#ff00aa]">i</span>
+							<span>HOW IT WORKS</span>
+						</div>
+					</nav>
+				</header>
+
+				<div class="flex p-8 gap-8">
+					<!-- left column: upload + summary -->
+					<div class="w-80 flex-shrink-0 space-y-8">
+						<!-- upload card -->
+						<div class="bg-[#140028] border border-[#ff00aa]/50 rounded-3xl p-7 glow-border">
+							<div class="flex justify-between items-center mb-6">
+								<div class="uppercase text-xs tracking-[2px] neon-glow-pink">INGEST</div>
+								<div class="text-xs px-3 py-1 bg-black rounded-3xl border border-[#00f3ff]/30">HAR 1.2</div>
+							</div>
+							
+							<div id="drop-zone"
+								class="border-2 border-dashed border-[#00f3ff]/60 hover:border-[#ff00aa] rounded-2xl h-60 flex flex-col items-center justify-center text-center transition-all cursor-pointer relative"
+								hx-post="/api/upload"
+								hx-encoding="multipart/form-data"
+								hx-target="#traffic-table-container"
+								hx-swap="innerHTML">
+								
+								<input type="file" id="har-file" accept=".har" class="hidden"
+									onchange="handleFileSelect(event)"/>
+								
+								<div class="text-7xl mb-4 text-[#ff00aa]/70">📼</div>
+								<div class="text-xl neon-glow-cyan mb-1">DROP HAR FILE</div>
+								<div class="text-xs text-white/40 max-w-[140px]">or click to browse • stays on your machine</div>
+								
+								<div class="absolute bottom-6 text-[10px] text-white/30">MAX 32 MiB • parsed locally</div>
+							</div>
+							
+							<div id="upload-result" class="mt-4 text-xs text-center text-emerald-300 hidden">
+								<!-- populated by JS after successful upload -->
+							</div>
+						</div>
+
+						<!-- quick stats -->
+						<div class="bg-[#140028]/70 border border-white/10 rounded-3xl p-6 text-xs">
+							<div class="grid grid-cols-2 gap-4">
+								<div>
+									<div class="text-white/40">ENDPOINTS</div>
+									<div id="stat-endpoints" class="text-5xl font-mono text-[#ff00aa] neon-glow-pink">0</div>
+								</div>
+								<div>
+									<div class="text-white/40">REQUESTS</div>
+									<div id="stat-requests" class="text-5xl font-mono text-[#00f3ff]">0</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- center: traffic table -->
+					<div class="flex-1">
+						<div class="bg-[#140028] border border-[#00f3ff]/30 rounded-3xl p-6 glow-border h-full flex flex-col">
+							<div class="flex items-center justify-between mb-6 px-2">
+								<div class="uppercase text-sm tracking-widest neon-glow-cyan">Captured Traffic</div>
+								<div onclick="refreshTraffic()" 
+									class="text-xs px-4 py-2 border border-[#ff00aa]/60 hover:bg-[#ff00aa]/10 rounded-2xl cursor-pointer transition-colors">REFRESH</div>
+							</div>
+							
+							<div id="traffic-table-container" class="flex-1 overflow-auto text-sm font-light">
+								{@ TrafficTable([]models.Endpoint{}) }
+							</div>
+						</div>
+					</div>
+
+					<!-- right panel: generation -->
+					<div class="w-96 flex-shrink-0">
+						{@ GenerationPanel(models.Artifact{}) }
+					</div>
+				</div>
+
+				<!-- horizon accent -->
+				<div class="h-px bg-gradient-to-r from-transparent via-[#00f3ff]/40 to-transparent mx-12 mt-auto"></div>
+				
+				<footer class="text-center py-8 text-[10px] text-white/20 flex items-center justify-center gap-x-5">
+					<span>ZERO TELEMETRY • LOCAL LLM ONLY</span>
+					<span class="w-px h-2.5 bg-white/30"></span>
+					<span>GO + TEMPL + OLLAMA + HTMX</span>
+				</footer>
+			</div>
+
+			<script>
+				function initTailwind() {
+					tailwind.config = {
+						content: ["./**/*.{templ,html}"],
+						theme: {
+							extend: {
+								colors: {
+									neonPink: "#ff00aa",
+									neonCyan: "#00f3ff",
+								}
+							}
+						}
+					}
+				}
+				
+				// Drag and drop support
+				function setupDropZone() {
+					const zone = document.getElementById("drop-zone");
+					if (!zone) return;
+					
+					zone.addEventListener("dragover", (e) => {
+						e.preventDefault();
+						zone.style.borderColor = "#ff00aa";
+						zone.style.backgroundColor = "rgba(255, 0, 170, 0.05)";
+					});
+					
+					zone.addEventListener("dragleave", () => {
+						zone.style.borderColor = "";
+						zone.style.backgroundColor = "";
+					});
+					
+					zone.addEventListener("drop", (e) => {
+						e.preventDefault();
+						zone.style.borderColor = "";
+						zone.style.backgroundColor = "";
+						
+						const file = e.dataTransfer.files[0];
+						if (file && file.name.endsWith(".har")) {
+							const formData = new FormData();
+							formData.append("file", file);
+							
+							htmx.ajax("POST", "/api/upload", {
+								body: formData,
+								target: "#traffic-table-container",
+								swap: "innerHTML",
+								headers: {"Accept": "text/html"}
+							}).then(() => {
+								document.getElementById("upload-result").classList.remove("hidden");
+								document.getElementById("upload-result").innerHTML = 
+									`<span class="text-emerald-400">✓ ${file.name} parsed successfully</span>`;
+							});
+						}
+					});
+					
+					// click to open file dialog
+					zone.addEventListener("click", () => {
+						document.getElementById("har-file").click();
+					});
+				}
+				
+				function handleFileSelect(e) {
+					const file = e.target.files[0];
+					if (!file) return;
+					
+					const formData = new FormData();
+					formData.append("file", file);
+					
+					htmx.ajax("POST", "/api/upload", {
+						body: formData,
+						target: "#traffic-table-container",
+						swap: "innerHTML"
+					});
+				}
+				
+				function selectType(el) {
+					document.querySelectorAll(".type-btn").forEach(btn => {
+						btn.classList.remove("!border-[#ff00aa]", "bg-[#2a0055]");
+					});
+					el.classList.add("!border-[#ff00aa]", "bg-[#2a0055]");
+					
+					const isMock = el.getAttribute("data-type") === "mock";
+					const langSelect = document.getElementById("lang-select");
+					if (langSelect) langSelect.style.display = isMock ? "none" : "block";
+				}
+				
+				function copyToClipboard(btn) {
+					const pre = btn.parentElement.querySelector("pre");
+					if (!pre) return;
+					
+					navigator.clipboard.writeText(pre.textContent).then(() => {
+						const orig = btn.textContent;
+						btn.textContent = "COPIED ✓";
+						btn.style.color = "#00f3ff";
+						setTimeout(() => {
+							btn.textContent = orig;
+							btn.style.color = "";
+						}, 1800);
+					});
+				}
+				
+				function showHelp() {
+					alert("NetScribe\n\n1. Export network traffic as HAR from your browser devtools\n2. Drop it here\n3. Let local Ollama name endpoints intelligently\n4. Generate typed clients, realistic mocks, and tests\n\nAll processing happens offline on your machine.");
+				}
+				
+				function refreshTraffic() {
+					window.location.reload();
+				}
+				
+				// Initialize everything when loaded
+				window.onload = function() {
+					initTailwind();
+					setupDropZone();
+					
+					// Make the first type button active
+					const firstBtn = document.querySelector(".type-btn");
+					if (firstBtn) firstBtn.classList.add("!border-[#ff00aa]", "bg-[#2a0055]");
+					
+					// Keyboard support for copy (meta+k)
+					document.addEventListener("keydown", function(e) {
+						if (e.metaKey && e.key === "k") {
+							e.preventDefault();
+							const copyBtn = document.querySelector("button[onclick^='copyToClipboard']");
+							if (copyBtn) copyBtn.click();
+						}
+					});
+				};
+				
+				// Expose for HTMX callbacks
+				window.copyToClipboard = copyToClipboard;
+				window.selectType = selectType;
+			</script>
+		</body>
+	</html>
+}
+
+// TrafficTable renders a neon-styled table of observed endpoints.
+templ TrafficTable(endpoints []models.Endpoint) {
+	if len(endpoints) == 0 {
+		<div class="flex h-full flex-col items-center justify-center text-center py-20 text-white/30">
+			<div class="text-6xl mb-6 opacity-30">🌐</div>
+			<div class="text-xl">No traffic loaded yet</div>
+			<div class="text-xs mt-3 max-w-[190px]">Drop a HAR file on the left to begin parsing requests and responses</div>
+		</div>
+	} else {
+		<table class="w-full">
+			<thead>
+				<tr class="border-b border-[#00f3ff]/20 text-xs uppercase tracking-widest text-[#ff00aa]">
+					<th class="text-left pl-4 py-5">METHOD</th>
+					<th class="text-left py-5">PATH</th>
+					<th class="text-left py-5">LLM NAME</th>
+					<th class="text-right pr-8 py-5">SAMPLES</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-white/10 text-sm">
+				for _, ep := range endpoints {
+					<tr class="hover:bg-[#1f0033]/60 transition-colors group">
+						<td class="pl-4 py-4">
+							<span class="inline-flex items-center px-3.5 py-1 text-xs font-bold rounded-3xl border border-emerald-300/30 text-emerald-300">
+								{ ep.Method }
+							</span>
+						</td>
+						<td class="py-4 font-light text-white/80">{ ep.Path }</td>
+						<td class="py-4">
+							if ep.Name != "" {
+								<span class="font-mono text-amber-200">{ ep.Name }</span>
+							} else {
+								<span class="text-white/30 text-xs italic">— awaiting LLM —</span>
+							}
+						</td>
+						<td class="py-4 pr-8 text-right text-xs text-[#00f3ff]/70 tabular-nums">{ len(ep.Examples) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}
+
+// GenerationPanel renders the artifact generator controls and live preview.
+// It uses Tailwind classes that match the synthwave neon visual direction.
+templ GenerationPanel(artifact models.Artifact) {
+	<div class="bg-[#140028] border border-[#ff00aa]/40 rounded-3xl p-7 glow-border h-full flex flex-col">
+		<div class="uppercase text-xs tracking-[1.5px] neon-glow-pink mb-6">GENERATE</div>
+		
+		<div class="flex gap-2 mb-7" id="type-selector">
+			<button 
+				data-type="client"
+				onclick="selectType(this)"
+				class="type-btn flex-1 py-4 text-xs font-bold border border-[#00f3ff]/70 hover:border-[#ff00aa] rounded-2xl transition-all active">
+				CLIENT
+			</button>
+			<button 
+				data-type="mock"
+				onclick="selectType(this)"
+				class="type-btn flex-1 py-4 text-xs font-bold border border-[#00f3ff]/70 hover:border-[#ff00aa] rounded-2xl transition-all">
+				MOCK
+			</button>
+			<button 
+				data-type="test"
+				onclick="selectType(this)"
+				class="type-btn flex-1 py-4 text-xs font-bold border border-[#00f3ff]/70 hover:border-[#ff00aa] rounded-2xl transition-all">
+				TEST
+			</button>
+		</div>
+		
+		<div id="lang-select" class="mb-6">
+			<label class="block text-[#ff00aa]/70 text-xs tracking-widest mb-3">LANGUAGE</label>
+			<select id="lang-select-control" 
+				class="w-full bg-black border border-[#00f3ff]/50 focus:border-[#ff00aa] text-white rounded-2xl px-5 py-4 text-sm outline-none">
+				<option value="typescript">TypeScript (fetch)</option>
+				<option value="go">Go (net/http)</option>
+				<option value="python">Python (requests)</option>
+			</select>
+		</div>
+		
+		<button 
+			hx-post="/api/generate"
+			hx-include="#lang-select-control"
+			hx-target="#generation-result"
+			hx-swap="innerHTML"
+			class="mt-auto mb-8 w-full py-6 text-black font-black text-lg tracking-widest rounded-3xl bg-gradient-to-r from-[#ff00aa] via-[#ff00aa] to-[#00f3ff] hover:brightness-110 active:scale-[0.985] transition-all shadow-[0_0_25px_-4px_#ff00aa]">
+			GENERATE WITH OLLAMA
+		</button>
+		
+		<div id="generation-result" class="flex-1 min-h-0 flex flex-col">
+			if artifact.Content != "" {
+				<div class="relative flex-1 flex flex-col">
+					<div class="absolute -top-2 left-6 bg-[#140028] border border-[#00f3ff]/60 text-[#00f3ff] text-[10px] px-4 py-px rounded">PREVIEW • { artifact.Filename }</div>
+					<pre class="flex-1 font-mono text-xs leading-relaxed overflow-auto p-6 border border-[#00f3ff]/30 rounded-3xl text-white/80 whitespace-pre-wrap">{ artifact.Content }</pre>
+					<button onclick="copyToClipboard(this)" 
+						class="absolute bottom-5 right-5 text-xs border border-[#ff00aa] hover:bg-[#ff00aa]/10 px-6 py-3 rounded-2xl transition-colors">
+						COPY TO CLIPBOARD
+					</button>
+				</div>
+			} else {
+				<div class="flex-1 flex items-center justify-center border border-dashed border-white/10 rounded-3xl text-center">
+					<div>
+						<div class="mx-auto w-8 h-8 border border-[#00f3ff]/30 rounded-2xl flex items-center justify-center text-xl mb-4">✦</div>
+						<div class="text-xs text-white/30">Generated code will appear here</div>
+					</div>
+				</div>
+			}
+		</div>
+		
+		<div class="text-[10px] text-center text-white/30 mt-8">
+			Powered by local llama3 • zero data leaves your machine
+		</div>
+	</div>
+}
