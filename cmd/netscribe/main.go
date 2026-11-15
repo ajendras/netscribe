@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
-	"github.com/netscribe/netscribe/internal/handlers"
+	_ "github.com/netscribe/netscribe/internal/handlers"
 	"github.com/netscribe/netscribe/internal/llm"
 	"github.com/netscribe/netscribe/internal/models"
 	"github.com/netscribe/netscribe/internal/parser"

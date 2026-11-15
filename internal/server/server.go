@@ -6,6 +6,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/netscribe/netscribe/internal/handlers"
 	"github.com/netscribe/netscribe/internal/ui"
 )
@@ -56,9 +57,9 @@ func New(port int) *http.Server {
 	return srv
 }
 
-// chiMiddlewareLogger is a minimal request logger using Chi's built-in.
+// chiMiddlewareLogger wraps the standard chi request logger.
 func chiMiddlewareLogger(next http.Handler) http.Handler {
-	return chi.Chain(chi.Logger).Handler(next)
+	return middleware.Logger(next)
 }
 
 // securityHeaders adds synthwave-appropriate security headers with secure defaults.

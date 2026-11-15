@@ -207,7 +207,7 @@ func TestService_EnrichWithLLM(t *testing.T) {
 	}
 
 	svc := service.New(mockLLM{})
-	err = svc.EnrichWithLLMForTest(traffic) // exported only for test
+	err = svc.EnrichWithLLM(traffic)
 	require.NoError(t, err)
 
 	assert.Equal(t, "listUsers", traffic.Endpoints[0].Name)
@@ -257,10 +257,4 @@ func TestModels_ToOpenAPI(t *testing.T) {
 	assert.Contains(t, spec, "listUsers")
 	assert.Contains(t, spec, "createUser")
 	assert.Contains(t, spec, "getPost")
-}
-
-// EnrichWithLLMForTest exposes the enrichment logic for integration tests only.
-// It is deliberately not part of the public API.
-func (s *service.Service) EnrichWithLLMForTest(td *models.TrafficData) error {
-	return s.EnrichWithLLM(td)
 }

@@ -58,7 +58,7 @@ func (s *Service) Generate(req models.GenerateRequest) (models.Artifact, error) 
 	}
 
 	// Enrich endpoint metadata with LLM before generation (non-fatal).
-	if err := s.enrichWithLLM(req.Traffic); err != nil {
+	if err := s.EnrichWithLLM(req.Traffic); err != nil {
 		// continue with best-effort data; enrichment is optional
 	}
 
@@ -92,9 +92,10 @@ func (s *Service) Generate(req models.GenerateRequest) (models.Artifact, error) 
 	}, nil
 }
 
-// enrichWithLLM queries the local LLM to derive friendly operation names
+// EnrichWithLLM queries the local LLM to derive friendly operation names
 // for each endpoint based on HTTP method, path and captured examples.
-func (s *Service) enrichWithLLM(td *models.TrafficData) error {
+// Exported to support integration tests.
+func (s *Service) EnrichWithLLM(td *models.TrafficData) error {
 	if s.llm == nil || len(td.Endpoints) == 0 {
 		return nil
 	}
