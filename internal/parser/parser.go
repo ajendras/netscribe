@@ -99,6 +99,7 @@ func ParseHAR(b []byte) (*models.TrafficData, error) {
 		ep := groups[key]
 
 		req := models.Request{
+			URL:     entry.Request.URL,
 			Method:  entry.Request.Method,
 			Path:    path,
 			Headers: extractNameValues(entry.Request.Headers),
@@ -180,4 +181,109 @@ func parsePossibleJSON(text, mimeType string) interface{} {
 		}
 	}
 	return text
+}
+
+// ToHAR builds a valid HAR 1.2 document from a TrafficData value.
+// Used by the built-in proxy to let users download captures without
+// leaving the capture session.
+func ToHAR(td *models.TrafficData) ([]byte, error) {
+	if td == nil {
+		return nil, fmt.Errorf("traffic data is required")
+	}
+
+	var entries []harEntry
+	for _, ep := range td.Endpoints {
+		for _, ex := range ep.Examples {
+			entries = append(entries, harEntry{
+				Request: harRequest{
+					Method:      ex.Request.Method,
+					URL:         ex.Request.URL,
+					Headers:     mapToNameValues(ex.Request.Headers),
+					QueryString: mapToNameValues(ex.Request.Query),
+					PostData:    bodyToPostData(ex.Request.Body),
+				},
+				Response: harResponse{
+					Status:  ex.Response.Status,
+					Headers: mapToNameValues(ex.Response.Headers),
+					Content: bodyToContent(ex.Response.Body),
+				},
+			})
+		}
+	}
+
+	f := harFile{
+		Log: harLog{
+			Entries: entries,
+		},
+	}
+	return json.MarshalIndent(f, "", "  ")
+}
+
+func mapToNameValues(m map[string]string) []nameValue {
+	if m == nil {
+		return nil
+	}
+	nvs := make([]nameValue, 0, len(m))
+	for k, v := range m {
+		nvs = append(nvs, nameValue{Name: k, Value: v})
+	}
+	return nvs
+}
+
+func bodyToPostData(body any) *harPostData {
+	if body == nil {
+		return nil
+	}
+	text := ""
+	mime := "text/plain"
+	switch v := body.(type) {
+	case map[string]any, []any, map[string]interface{}, []interface{}:
+		if b, err := json.Marshal(v); err == nil {
+			text = string(b)
+			mime = "application/json"
+		}
+	case string:
+		text = v
+	default:
+		if b, err := json.Marshal(v); err == nil {
+			text = string(b)
+			mime = "application/json"
+		}
+	}
+	if text == "" {
+		return nil
+	}
+	return &harPostData{
+		MimeType: mime,
+		Text:     text,
+	}
+}
+
+func bodyToContent(body any) *harContent {
+	if body == nil {
+		return nil
+	}
+	text := ""
+	mime := "text/plain"
+	switch v := body.(type) {
+	case map[string]any, []any, map[string]interface{}, []interface{}:
+		if b, err := json.Marshal(v); err == nil {
+			text = string(b)
+			mime = "application/json"
+		}
+	case string:
+		text = v
+	default:
+		if b, err := json.Marshal(v); err == nil {
+			text = string(b)
+			mime = "application/json"
+		}
+	}
+	if text == "" {
+		return nil
+	}
+	return &harContent{
+		MimeType: mime,
+		Text:     text,
+	}
 }

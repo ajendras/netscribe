@@ -27,12 +27,13 @@ Privacy-first. Zero telemetry.`,
 	}
 
 	var (
-		port       int
-		ollamaHost string
-		file       string
+		port         int
+		ollamaHost   string
+		file         string
 		artifactType string
-		lang       string
-		out        string
+		lang         string
+		out          string
+		proxyPort    int
 	)
 
 	serveCmd := &cobra.Command{
@@ -55,6 +56,27 @@ Privacy-first. Zero telemetry.`,
 
 	serveCmd.Flags().IntVarP(&port, "port", "p", 8080, "port for the web server (default 8080)")
 	serveCmd.Flags().StringVar(&ollamaHost, "ollama-host", "http://localhost:11434", "Ollama API endpoint")
+
+	proxyCmd := &cobra.Command{
+		Use:   "proxy",
+		Short: "Start the built-in MITM proxy for live traffic capture",
+		Long: `Starts a local proxy that captures HTTP traffic into models.TrafficData.
+Configure your browser or http_proxy to use it. Visit /har to download a
+valid HAR file that can be used with the dashboard or generate command.
+HTTPS is supported via CONNECT tunneling.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			srv := server.NewProxy(proxyPort)
+			log.Printf("🚀 NetScribe MITM Proxy listening on http://localhost:%d", proxyPort)
+			log.Println("Configure your browser or set http_proxy=http://localhost:" + fmt.Sprintf("%d", proxyPort))
+			log.Println("Visit http://localhost:" + fmt.Sprintf("%d", proxyPort) + "/har to export captured traffic as HAR")
+			log.Println("POST to /clear to reset the capture buffer")
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("proxy failed: %v", err)
+			}
+		},
+	}
+
+	proxyCmd.Flags().IntVarP(&proxyPort, "port", "p", 8081, "port for the MITM proxy server")
 
 	generateCmd := &cobra.Command{
 		Use:   "generate",
@@ -121,7 +143,7 @@ Example: netscribe generate --file api.har --type client --lang go --out client.
 	generateCmd.Flags().StringVar(&lang, "lang", "typescript", "Output language: typescript, go, python")
 	generateCmd.Flags().StringVarP(&out, "out", "o", "", "Output file path (default: stdout)")
 
-	rootCmd.AddCommand(serveCmd, generateCmd)
+	rootCmd.AddCommand(serveCmd, generateCmd, proxyCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

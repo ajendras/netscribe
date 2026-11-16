@@ -258,3 +258,31 @@ func TestModels_ToOpenAPI(t *testing.T) {
 	assert.Contains(t, spec, "createUser")
 	assert.Contains(t, spec, "getPost")
 }
+
+func TestTrafficData_AddExample(t *testing.T) {
+	td := &models.TrafficData{}
+	headers := map[string]string{"Content-Type": "application/json"}
+	td.AddExample("POST", "https://api.example.com/api/users", "/api/users", headers, nil, map[string]any{"name": "test"}, 201, map[string]string{"Content-Type": "application/json"}, map[string]any{"id": 1, "status": "created"})
+
+	assert.Equal(t, 1, len(td.Endpoints))
+	assert.Equal(t, "POST", td.Endpoints[0].Method)
+	assert.Equal(t, "/api/users", td.Endpoints[0].Path)
+	assert.Equal(t, 1, len(td.Endpoints[0].Examples))
+	assert.Equal(t, 1, td.TotalRequests)
+	assert.Equal(t, "https://api.example.com/api/users", td.Endpoints[0].Examples[0].Request.URL)
+}
+
+func TestProxy_HARRoundtrip(t *testing.T) {
+	traffic, err := parser.ParseHAR(sampleHAR)
+	require.NoError(t, err)
+
+	harBytes, err := parser.ToHAR(traffic)
+	require.NoError(t, err)
+	assert.NotEmpty(t, harBytes)
+
+	// round-tripping through ToHAR -> ParseHAR should preserve core structure
+	roundtrip, err := parser.ParseHAR(harBytes)
+	require.NoError(t, err)
+	assert.Equal(t, len(traffic.Endpoints), len(roundtrip.Endpoints))
+	assert.Equal(t, traffic.TotalRequests, roundtrip.TotalRequests)
+}

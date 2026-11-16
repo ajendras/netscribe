@@ -23,6 +23,7 @@ type Endpoint struct {
 
 // Request captures the salient parts of an observed HTTP request.
 type Request struct {
+	URL     string            `json:"url,omitempty"`
 	Method  string            `json:"method"`
 	Path    string            `json:"path"`
 	Headers map[string]string `json:"headers,omitempty"`
@@ -56,6 +57,58 @@ type Artifact struct {
 	Type     string `json:"type"`
 	Language string `json:"language,omitempty"`
 	Filename string `json:"filename"`
+}
+
+// AddExample records a live request/response pair into the traffic data.
+// It is used by the built-in MITM proxy to accumulate captured traffic
+// without requiring a full HAR round-trip.
+func (td *TrafficData) AddExample(method, url, path string, reqHeaders, reqQuery map[string]string, reqBody any, status int, respHeaders map[string]string, respBody any) {
+	if td == nil || method == "" {
+		return
+	}
+	if path == "" {
+		path = "/"
+	}
+	key := method + ":" + path
+
+	for i := range td.Endpoints {
+		if td.Endpoints[i].ID == key {
+			td.addToEndpoint(i, url, reqHeaders, reqQuery, reqBody, status, respHeaders, respBody)
+			return
+		}
+	}
+
+	td.Endpoints = append(td.Endpoints, Endpoint{
+		ID:       key,
+		Method:   method,
+		Path:     path,
+		Name:     "",
+		Examples: []Example{},
+	})
+	td.addToEndpoint(len(td.Endpoints)-1, url, reqHeaders, reqQuery, reqBody, status, respHeaders, respBody)
+}
+
+func (td *TrafficData) addToEndpoint(idx int, url string, reqHeaders, reqQuery map[string]string, reqBody any, status int, respHeaders map[string]string, respBody any) {
+	ex := Example{
+		Request: Request{
+			URL:     url,
+			Method:  td.Endpoints[idx].Method,
+			Path:    td.Endpoints[idx].Path,
+			Headers: reqHeaders,
+			Query:   reqQuery,
+			Body:    reqBody,
+		},
+		Response: Response{
+			Status:  status,
+			Headers: respHeaders,
+			Body:    respBody,
+		},
+	}
+	td.Endpoints[idx].Examples = append(td.Endpoints[idx].Examples, ex)
+	if len(td.Endpoints[idx].Examples) > 5 {
+		td.Endpoints[idx].Examples = td.Endpoints[idx].Examples[:5]
+	}
+	td.TotalRequests++
 }
 
 // InferSchema returns a coarse type descriptor derived from the first

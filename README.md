@@ -72,7 +72,10 @@ Use via beautiful UI or headless CLI for CI workflows
 🔒 <b>Privacy First</b><br>
 Zero telemetry; everything stays on your machine
 </td>
-<td></td>
+<td align="center" width="33%">
+🔍 <b>Live MITM Proxy</b><br>
+Capture live traffic directly; no more manual HAR exports from devtools
+</td>
 </tr>
 </table>
 
@@ -108,6 +111,13 @@ netscribe generate \
 
 The resulting `client.ts` contains a ready-to-use `ApiClient` class with methods derived from your traffic (LLM-enhanced names when Ollama is available).
 
+```bash
+# Live capture with the built-in proxy (no manual HAR export)
+netscribe proxy --port 8081
+```
+
+Configure your browser or `http_proxy` to `http://localhost:8081`, exercise your APIs, then download the capture with `curl -o capture.har http://localhost:8081/har`.
+
 ## 🧰 Usage
 
 ### Start the synthwave dashboard
@@ -117,6 +127,28 @@ netscribe serve --port 8080 --ollama-host http://localhost:11434
 ```
 
 Open http://localhost:8080, drag in a `.har` file, preview the parsed endpoints, then generate and copy clients, mocks, or tests with one click.
+
+### Live traffic with built-in MITM proxy
+
+```bash
+netscribe proxy --port 8081
+```
+
+The proxy captures requests and responses into `models.TrafficData`. Configure your environment:
+
+```bash
+export http_proxy=http://localhost:8081
+# or set proxy settings in your browser/OS
+```
+
+Perform API calls, then export:
+
+```bash
+curl -o capture.har http://localhost:8081/har
+curl -X POST http://localhost:8081/clear   # reset capture
+```
+
+Use the resulting HAR with the dashboard or CLI. HTTPS is tunneled (full TLS MITM with CA is planned for future).
 
 ### CLI: Generate a Go client
 
@@ -152,10 +184,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ajendras/netscribe/internal/llm"
-	"github.com/ajendras/netscribe/internal/models"
-	"github.com/ajendras/netscribe/internal/parser"
-	"github.com/ajendras/netscribe/internal/service"
+	"github.com/netscribe/netscribe/internal/llm"
+	"github.com/netscribe/netscribe/internal/models"
+	"github.com/netscribe/netscribe/internal/parser"
+	"github.com/netscribe/netscribe/internal/service"
 )
 
 func main() {
@@ -179,6 +211,7 @@ func main() {
 | Option          | Default                    | Description |
 |-----------------|----------------------------|-----------|
 | `--port`, `-p`  | `8080`                     | Port for the web dashboard (`serve` command) |
+| `--port`, `-p`  | `8081`                     | Port for the MITM proxy (`proxy` command) |
 | `--ollama-host` | `http://localhost:11434`   | Ollama API endpoint; also respects `OLLAMA_HOST` env var |
 | `--file`, `-f`  | (required)                 | Path to input HAR file (`generate` command) |
 | `--type`        | `client`                   | Artifact type: `client`, `mock`, or `test` |
@@ -189,8 +222,10 @@ func main() {
 
 ```mermaid
 flowchart TD
+    Proxy[Built-in MITM Proxy<br/>:8081 with /har endpoint] --> Capture[Capture req/resp pairs]
+    Capture --> TD[models.TrafficData<br/>grouped Endpoints + Examples]
     HAR[HAR File<br/>upload or CLI] --> Parser[internal/parser.ParseHAR]
-    Parser --> TD[models.TrafficData<br/>grouped Endpoints + Examples]
+    Parser --> TD
     TD --> Service[internal/service.Service.Generate]
     Service --> LLM[internal/llm.Client.Complete<br/>llama3 naming]
     Service --> Gen[generator.GenerateClient<br/>GenerateMock<br/>GenerateTest]
@@ -200,7 +235,7 @@ flowchart TD
     Output --> UI[internal/ui Dashboard<br/>HTMX + Tailwind neon]
 ```
 
-NetScribe follows a clean pipeline: raw HAR is parsed into `TrafficData`, optionally enriched with LLM-derived names via `service.enrichWithLLM`, then dispatched to the appropriate generator. The same core path powers both the Chi/Templ web UI and the Cobra CLI, keeping all processing local.
+NetScribe follows a clean pipeline: raw HAR is parsed into `TrafficData`, optionally enriched with LLM-derived names via `service.enrichWithLLM`, then dispatched to the appropriate generator. The same core path powers both the Chi/Templ web UI and the Cobra CLI, keeping all processing local. The new proxy accumulates directly into `TrafficData` via `AddExample` and exports via `parser.ToHAR`.
 
 ## 📁 Project structure
 
@@ -246,7 +281,7 @@ Covers parser edge cases, generator template output, service orchestration, LLM 
 ## 📍 Roadmap
 <!-- roadmap:start -->
 - [x] **v0.1.0** — first release: HAR Ingestion, Local LLM, Multi-Language, Test Generation
-- [ ] Add built-in MITM proxy for live traffic capture without manual HAR export
+- [x] Add built-in MITM proxy for live traffic capture without manual HAR export
 - [ ] Generate framework-specific bindings (TanStack Query, React Query, tRPC)
 - [ ] Add Python (httpx+pytest) and Rust (reqwest) output targets
 - [ ] Embed a runnable mock server that serves generated fixtures on localhost
