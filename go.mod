@@ -1,6 +1,6 @@
 module github.com/netscribe/netscribe
 
-go 1.23
+go 1.21
 
 require (
 	github.com/a-h/templ v0.2.543
