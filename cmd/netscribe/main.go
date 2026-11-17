@@ -23,7 +23,7 @@ func main() {
 API clients, dynamic mocks, and tests. All inference runs on your machine via Ollama.
 
 Privacy-first. Zero telemetry.`,
-		Version: "0.1.0",
+		Version: "0.2.0",
 	}
 
 	var (
